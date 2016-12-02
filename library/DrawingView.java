@@ -10,6 +10,8 @@ import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 
+import com.pixeldrawview.library.Pixel;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -17,6 +19,8 @@ import java.util.List;
  * Created by fedor on 27.07.2016.
  */
 public class DrawingView extends View {
+
+    private Context mContext;
 
     private int rectSize = 0;
     private int width = 0;
@@ -110,6 +114,7 @@ public class DrawingView extends View {
     }
 
     private void init(Context context) {
+        this.mContext = context;
         mPixelsList = new ArrayList<>();
     }
 
@@ -118,23 +123,8 @@ public class DrawingView extends View {
 
     public Bitmap getResultThumb() {
 
-        Pixel pisi = mPixelsList.get(0);
-        Bitmap.Config conf = Bitmap.Config.ARGB_8888;
-
-
-        result = Bitmap.createBitmap((pisi.getCellSize() * 50), (int) (pisi.getCellSize() * 50), conf);
-        bitmapCanvas = new Canvas(result);
-
-        for (int i = 0; i < mPixelsList.size(); i++) {
-            Pixel pixel = mPixelsList.get(i);
-            Rect rect = pixel.getRectangleClear();
-            bitmapCanvas.drawRect(rect, pixel.getFillPaint());
-            bitmapCanvas.drawRect(rect, pixel.getBorderPaint());
-
-        }
-
+        Bitmap result = getResultAreaV2(false);
         Bitmap resized = Bitmap.createScaledBitmap(result, result.getWidth() / 5, result.getHeight() / 5, false);
-
         return resized;
     }
 
@@ -142,9 +132,7 @@ public class DrawingView extends View {
 
         Pixel pisi = mPixelsList.get(0);
         Bitmap.Config conf = Bitmap.Config.ARGB_8888;
-
-
-        result = Bitmap.createBitmap((pisi.getCellSize() * 50), (int) (pisi.getCellSize() * 50), conf);
+        result = Bitmap.createBitmap((int) (pisi.getCellSize() * 50), (int) (pisi.getCellSize() * 50), conf);
         bitmapCanvas = new Canvas(result);
 
         for (int i = 0; i < mPixelsList.size(); i++) {
@@ -161,23 +149,9 @@ public class DrawingView extends View {
     }
 
     public void getResultArea(boolean withBorders) {
-        Bitmap.Config conf = Bitmap.Config.ARGB_8888;
-        result = Bitmap.createBitmap(getWidth(), getHeight(), conf);
-        bitmapCanvas = new Canvas(result);
-        for (int i = 0; i < mPixelsList.size(); i++) {
-            Pixel pixel = mPixelsList.get(i);
-            Rect rect = pixel.getRectangle();
-            if ((rect.right > 0 && rect.bottom > 0) || (rect.left < width && rect.top < height)) {
-                bitmapCanvas.drawRect(rect, pixel.getFillPaint());
-                if (withBorders) {
-                    bitmapCanvas.drawRect(rect, pixel.getBorderPaint());
-                }
-            }
-        }
-        if (mListener != null) {
-            mListener.onBitmapReady(result);
-        }
+        getResultAreaV2(withBorders);
     }
+
 
     private Bitmap overlay;
 
@@ -215,7 +189,7 @@ public class DrawingView extends View {
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
-        rectSize = ((w * 5) / 100);
+        rectSize = (int) ((w * 5) / 100);
         width = w;
         height = h;
         if (mListener != null) {
@@ -225,8 +199,8 @@ public class DrawingView extends View {
 
 
     public void initView(int xCount, int yCount) {
-        this.rectXCount = xCount;
-        this.rectYCount = yCount;
+        this.rectXCount = xCount;//= (int) (width / rectSize);
+        this.rectYCount = yCount;//= (int) (height / rectSize);
         for (int i = 0; i < rectYCount; i++) {
             for (int j = 0; j < rectXCount; j++) {
                 Pixel pixel = new Pixel();
@@ -239,12 +213,99 @@ public class DrawingView extends View {
         invalidate();
     }
 
+    public Bitmap getResultAreaV2(boolean withBorders) {
+        List<Pixel> resultList = new ArrayList<>();
+        for (int i = 0; i < mPixelsList.size(); i++) {
+            if (mPixelsList.get(i).getFillPaintColor() != Color.WHITE) {
+                resultList.add(mPixelsList.get(i));
+            }
+        }
+        //x = J param; y = i param;
+        int minXPosition = resultList.get(0).getjPos();
+        int maxXPosition = resultList.get(0).getjPos();
+
+        int minYPosition = resultList.get(0).getiPos();
+        int maxYPosition = resultList.get(0).getiPos();
+
+        for (int i = 0; i < resultList.size(); i++) {
+            //getMinX
+            if (resultList.get(i).getjPos() < minXPosition) {
+                minXPosition = resultList.get(i).getjPos();
+            }
+            //getMaxX
+            if (resultList.get(i).getjPos() > maxXPosition) {
+                maxXPosition = resultList.get(i).getjPos();
+            }
+            //getMinY
+            if (resultList.get(i).getiPos() < minYPosition) {
+                minYPosition = resultList.get(i).getiPos();
+            }
+            //getMaxY
+            if (resultList.get(i).getiPos() > maxYPosition) {
+                maxYPosition = resultList.get(i).getiPos();
+            }
+        }
+        int xLength = maxXPosition - minXPosition + 1;
+        int yLength = maxYPosition - minYPosition + 1;
+
+        List<Pixel> filledPixelsList = new ArrayList<>();
+        Pixel ethalonPixel = resultList.get(0);
+        //x = J param; y = i param;
+        for (int j = minXPosition; j < (minXPosition + xLength); j++) {
+            for (int i = minYPosition; i < (minYPosition + yLength); i++) {
+                Pixel pixelA = findPixelInList(resultList, i, j);
+
+                if (pixelA == null) {
+                    Log.d("Pixel Null", "Fill with empty");
+                    pixelA = Pixel.getEmptyPixel(i, j);
+                    pixelA.setZoom(ethalonPixel.getZoom());
+                    pixelA.setCellSize(ethalonPixel.getCellSize());
+                    pixelA.setOffsetY(ethalonPixel.getOffsetY());
+                    pixelA.setOffsetX(ethalonPixel.getOffsetX());
+                }
+                Pixel findedPixel = Pixel.copy(pixelA);
+                findedPixel.setiPos(findedPixel.getiPos() - minYPosition);
+                findedPixel.setjPos(findedPixel.getjPos() - minXPosition);
+                filledPixelsList.add(findedPixel);
+            }
+        }
+
+        //draw
+        Bitmap.Config conf = Bitmap.Config.ARGB_8888;
+        result = Bitmap.createBitmap((xLength) * ethalonPixel.getCellSize(), (yLength) * ethalonPixel.getCellSize(), conf);
+        bitmapCanvas = new Canvas(result);
+        for (int i = 0; i < filledPixelsList.size(); i++) {
+            Pixel pixel = filledPixelsList.get(i);
+            Rect rect = pixel.getRectangleClear();
+            if ((rect.right > 0 && rect.bottom > 0) || (rect.left < width && rect.top < height)) {
+                bitmapCanvas.drawRect(rect, pixel.getFillPaint());
+                if (withBorders) {
+                    bitmapCanvas.drawRect(rect, pixel.getBorderPaint());
+                }
+            }
+        }
+        if (mListener != null) {
+            mListener.onBitmapReady(result);
+        }
+        return result;
+    }
+
+    private Pixel findPixelInList(List<Pixel> list, int x, int y) {
+        for (int i = 0; i < list.size(); i++) {
+            if (list.get(i).getiPos() == x && list.get(i).getjPos() == y) {
+                return list.get(i);
+            }
+        }
+        return null;
+    }
 
     public boolean zoomIn() {
         if (currZoom >= MAX_ZOOM) {
             return false;
         }
         currZoom += 0.2;
+        Log.d("CurrentZoom", "" + currZoom);
+        Log.d("CurrentZoomInt", "" + getSeekBarZoomPosition());
         for (int i = 0; i < mPixelsList.size(); i++) {
             mPixelsList.get(i).setZoom(currZoom);
         }
@@ -263,6 +324,8 @@ public class DrawingView extends View {
             return false;
         }
         currZoom -= 0.2;
+        Log.d("CurrentZoom", "" + currZoom);
+        Log.d("CurrentZoomInt", "" + getSeekBarZoomPosition());
         for (int i = 0; i < mPixelsList.size(); i++) {
             mPixelsList.get(i).setZoom(currZoom);
         }

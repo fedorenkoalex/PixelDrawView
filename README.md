@@ -59,7 +59,7 @@ Note: Disable by default. By default one tap on cell fill it with color
 **`void getResultAll(boolean withBorders)` - get all view bitmap**
 Note: result will be returned to `void onBitmapReady(Bitmap bmp)`
 
-**`void getResultArea(boolean withBorders)` - get bitmap of area on the screen**
+**`void getResultArea(boolean withBorders)` - get bitmap of result image**
 Note: result will be returned to `void onBitmapReady(Bitmap bmp)`
 
 **`boolean zoomIn()` - increase zoom**
